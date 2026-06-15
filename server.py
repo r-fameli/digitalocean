@@ -52,8 +52,10 @@ def infer_with_retry(prompt: str) -> dict:
 def persist_results(batch_id: str, output: list[dict]):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     filepath = os.path.join(OUTPUT_DIR, f"{batch_id}.json")
-    with open(filepath, "w") as f:
+    tmp = filepath + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(output, f, indent=2)
+    os.replace(tmp, filepath)
     print(f"[{batch_id}] Results written to {filepath}")
 
 

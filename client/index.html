@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batch Inference Dashboard</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0b1120;
+  --surface: #1e293b;
+  --surface2: #334155;
+  --border: #475569;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --accent: #3b82f6;
+  --accent2: #2563eb;
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --radius: 8px;
+}
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+header h1 { font-size: 1.1rem; font-weight: 600; }
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.err { background: var(--red); box-shadow: 0 0 6px var(--red); }
+.connection { font-size: 0.8rem; color: var(--text2); display: flex; align-items: center; gap: 12px; }
+
+nav.tabs {
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+nav.tabs button {
+  background: none;
+  border: none;
+  color: var(--text2);
+  padding: 12px 20px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+nav.tabs button:hover { color: var(--text); }
+nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+}
+.stat-card .num { font-size: 2rem; font-weight: 700; }
+.stat-card .label { font-size: 0.8rem; color: var(--text2); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.toolbar label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text2); cursor: pointer; }
+.toolbar input[type=checkbox] { accent-color: var(--accent); }
+.btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--border); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: var(--accent2); }
+.btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.btn.danger:hover { opacity: 0.9; }
+.btn.small { padding: 4px 10px; font-size: 0.75rem; }
+
+.batch-list { display: flex; flex-direction: column; gap: 8px; }
+.batch-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 16px;
+}
+.batch-row:hover { border-color: var(--accent); background: #1e293bcc; }
+.batch-row.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.batch-id { font-weight: 600; font-size: 0.9rem; }
+.batch-id .id { color: var(--accent); font-family: inherit; }
+.batch-meta { font-size: 0.8rem; color: var(--text2); }
+.progress-wrap { width: 200px; }
+.progress-bar-bg { background: var(--surface2); border-radius: 4px; height: 8px; overflow: hidden; }
+.progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.progress-bar-fill.in_progress { background: var(--accent); }
+.progress-bar-fill.completed { background: var(--green); }
+.progress-text { font-size: 0.75rem; color: var(--text2); margin-top: 4px; text-align: right; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.badge.in_progress { background: #1e3a5f; color: #60a5fa; }
+.badge.completed { background: #14532d; color: #4ade80; }
+.badge.failed { background: #7f1d1d; color: #fca5a5; }
+.badge.queued { background: #713f12; color: #fcd34d; }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text2);
+}
+.empty-state .icon { font-size: 3rem; margin-bottom: 16px; }
+.empty-state p { margin: 8px 0; }
+
+.textarea-wrap { margin-bottom: 20px; }
+textarea {
+  width: 100%;
+  min-height: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 12px 16px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+textarea::placeholder { color: var(--text2); }
+
+.input-row { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+.input-row label { font-size: 0.85rem; color: var(--text2); white-space: nowrap; }
+input[type=text], input[type=number] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  width: 100%;
+}
+input:focus { outline: none; border-color: var(--accent); }
+
+.prompt-count { font-size: 0.8rem; color: var(--text2); margin-bottom: 16px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+
+.response-banner {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  display: none;
+}
+.response-banner.success { background: #14532d; color: #4ade80; display: block; }
+.response-banner.error { background: #7f1d1d; color: #fca5a5; display: block; }
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.modal h2 { font-size: 1.1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 1.2rem;
+  margin-left: auto;
+  padding: 4px 8px;
+}
+.modal-close:hover { color: var(--text); }
+
+.result-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.result-table th, .result-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
+.result-table th { color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.7rem; }
+.result-table tr:hover { background: rgba(255,255,255,0.02); }
+.result-row.failed { background: rgba(239,68,68,0.08); }
+.result-row.failed td:last-child { color: var(--red); }
+
+.detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.detail-stat { text-align: center; padding: 12px; background: var(--surface2); border-radius: var(--radius); }
+.detail-stat .val { font-size: 1.5rem; font-weight: 700; }
+.detail-stat .lbl { font-size: 0.7rem; color: var(--text2); text-transform: uppercase; }
+
+.failed-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.failed-section h3 { font-size: 0.9rem; color: var(--red); margin-bottom: 12px; }
+
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--text2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hint { font-size: 0.75rem; color: var(--text2); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#9889; Batch Inference Dashboard</h1>
+  <div class="connection">
+    <span id="connStatus"><span class="status-dot err"></span>Checking...</span>
+    <span id="pollIndicator" style="display:none"><span class="spinner"></span> Polling</span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="dashboard">&#9632; Dashboard</button>
+  <button data-tab="submit">&#10133; New Batch</button>
+</nav>
+
+<main>
+  <section id="tab-dashboard" class="tab-content active">
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">Total Batches</div></div>
+      <div class="stat-card"><div class="num" id="statActive">0</div><div class="label">Active</div></div>
+      <div class="stat-card"><div class="num" id="statCompleted">0</div><div class="label">Completed</div></div>
+      <div class="stat-card"><div class="num" id="statRetrying" style="color:var(--amber)">0</div><div class="label">Retrying</div></div>
+      <div class="stat-card"><div class="num" id="statFailed" style="color:var(--red)">0</div><div class="label">Failed Items</div></div>
+    </div>
+
+    <div class="toolbar">
+      <label><input type="checkbox" id="autoRefresh" checked> Auto-refresh (2s)</label>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="refreshAll()">&#8635; Refresh Now</button>
+        <button class="btn danger small" onclick="clearBatches()">Clear All</button>
+      </div>
+    </div>
+
+    <div id="batchList" class="batch-list">
+      <div class="empty-state">
+        <div class="icon">&#128202;</div>
+        <p>No batches yet.</p>
+        <p>Go to <strong>New Batch</strong> to submit some prompts.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-submit" class="tab-content">
+    <h2 style="font-size:1rem;margin-bottom:16px">Submit Prompts</h2>
+
+    <div class="textarea-wrap">
+      <textarea id="promptInput" placeholder='Enter prompts, one per line...
+
+e.g.
+What is the capital of France?
+Explain quantum computing in one sentence.
+Write a haiku about rain.
+
+Or paste a JSON array:
+["prompt 1", "prompt 2"]'></textarea>
+    </div>
+
+    <div class="prompt-count" id="promptCount">0 prompts entered</div>
+
+    <div class="actions">
+      <button class="btn primary" onclick="submitBatch(this)">&#9654; Submit Batch</button>
+      <button class="btn" onclick="generateSamples()">&#127760; Generate 50 Samples</button>
+      <button class="btn" onclick="generateSamples(10)">Generate 10</button>
+      <button class="btn" onclick="document.getElementById('promptInput').value='';updatePromptCount()">Clear</button>
+    </div>
+
+    <div class="input-row" style="margin-top:8px">
+      <label>Or load from file path:</label>
+      <input type="text" id="filePath" placeholder="/workspaces/sample_prompts.json" style="flex:1">
+      <button class="btn primary" onclick="submitFromFile()">Load from File</button>
+    </div>
+
+    <div id="submitResponse" class="response-banner"></div>
+  </section>
+</main>
+
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+const API = '/api';
+let pollTimer = null;
+let selectedBatch = null;
+let batchResults = {};
+let prevProgress = {};
+let stallCount = {};
+const STALL_THRESHOLD = 3;
+
+const SAMPLE_POOL = [
+  "What is the capital of France?",
+  "Explain quantum computing in one sentence.",
+  "Write a haiku about rain.",
+  "How does a blockchain work?",
+  "What is the speed of light?",
+  "Describe the theory of relativity.",
+  "What is machine learning?",
+  "How do neural networks learn?",
+  "Explain the difference between TCP and UDP.",
+  "What is a binary search tree?",
+  "How does garbage collection work in Python?",
+  "Explain the CAP theorem.",
+  "What is Docker and why use it?",
+  "How does HTTPS work?",
+  "Describe the actor model in concurrency.",
+  "What is the difference between SQL and NoSQL?",
+  "How does a load balancer work?",
+  "Explain eventual consistency.",
+  "What is a race condition?",
+  "How does async/await work in JavaScript?",
+  "Describe the MapReduce paradigm.",
+  "What is OAuth 2.0?",
+  "How do content delivery networks work?",
+  "Explain the difference between stack and heap.",
+  "What is a bloom filter?",
+  "How does Kubernetes orchestrate containers?",
+  "Describe the observer pattern.",
+  "What is the difference between monolith and microservices?",
+  "How does a CPU cache work?",
+  "Explain the concept of immutability.",
+  "What is the difference between encryption and hashing?",
+  "How does DNS resolution work?",
+  "Describe the event loop in Node.js.",
+  "What is sharding in databases?",
+  "How does TCP congestion control work?",
+  "Explain the Liskov substitution principle.",
+  "What is the difference between compilation and interpretation?",
+  "How does a garbage collector identify dead objects?",
+  "Describe the publish-subscribe pattern.",
+  "What is tail recursion?",
+  "How does TLS certificate validation work?",
+  "Explain the concept of idempotency in APIs.",
+  "What is the difference between latency and throughput?",
+  "How does a bloom filter work?",
+  "Describe the saga pattern for distributed transactions.",
+  "What is double-entry bookkeeping?",
+  "How does a B-tree index work?",
+  "Explain memory-mapped files.",
+  "What is the two generals' problem?",
+  "How do quorum-based systems ensure consistency?"
+];
+
+function getStoredBatches() {
+  try { return JSON.parse(localStorage.getItem('batches') || '[]'); }
+  catch { return []; }
+}
+function storeBatches(batches) {
+  localStorage.setItem('batches', JSON.stringify(batches));
+}
+
+function api(path, opts = {}) {
+  return fetch(`${API}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  }).then(r => r.json());
+}
+
+async function checkConnection() {
+  try {
+    const data = await api('/');
+    const dot = document.querySelector('#connStatus .status-dot');
+    if (data.status === 'ok') {
+      dot.className = 'status-dot ok';
+      document.getElementById('connStatus').innerHTML = '<span class="status-dot ok"></span> Connected';
+    } else {
+      dot.className = 'status-dot err';
+      document.getElementById('connStatus').innerHTML = '<span class="status-dot err"></span> API Error';
+    }
+  } catch {
+    document.getElementById('connStatus').innerHTML = '<span class="status-dot err"></span> Disconnected';
+  }
+}
+
+async function refreshAll() {
+  const batches = getStoredBatches();
+  if (!batches.length) {
+    renderBatchList([]);
+    updateStats([]);
+    return;
+  }
+
+  const statuses = await Promise.allSettled(
+    batches.map(b => api(`/status/${b.id}`))
+  );
+
+  const merged = batches.map((b, i) => {
+    const s = statuses[i].status === 'fulfilled' ? statuses[i].value : null;
+    return {
+      id: b.id,
+      count: b.count,
+      submittedAt: b.submittedAt,
+      status: s && !s.error ? s.status : 'unknown',
+      completed: s && !s.error ? s.completed : 0,
+      total: s && !s.error ? s.total : b.count,
+    };
+  });
+
+  merged.forEach(b => {
+    if (b.status === 'in_progress') {
+      const prev = prevProgress[b.id];
+      if (prev !== undefined && b.completed === prev) {
+        stallCount[b.id] = (stallCount[b.id] || 0) + 1;
+      } else {
+        stallCount[b.id] = 0;
+      }
+      prevProgress[b.id] = b.completed;
+    } else {
+      delete prevProgress[b.id];
+      delete stallCount[b.id];
+    }
+  });
+
+  renderBatchList(merged);
+  updateStats(merged);
+
+  if (selectedBatch) {
+    const selected = merged.find(b => b.id === selectedBatch);
+    if (selected) showBatchDetail(selected);
+  }
+}
+
+function renderBatchList(batches) {
+  const container = document.getElementById('batchList');
+  if (!batches.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="icon">&#128202;</div>
+      <p>No batches yet.</p>
+      <p>Go to <strong>New Batch</strong> to submit some prompts.</p>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = batches.map(b => {
+    const pct = b.total > 0 ? Math.round((b.completed / b.total) * 100) : 0;
+    const cls = b.id === selectedBatch ? 'selected' : '';
+    const isStalled = b.status === 'in_progress' && (stallCount[b.id] || 0) >= STALL_THRESHOLD;
+    const metaExtra = isStalled
+      ? ' <span style="color:var(--amber);font-size:0.75rem" title="Progress stalled — workers may be retrying after 429 errors">&#9888; retrying</span>'
+      : '';
+    return `<div class="batch-row ${cls}" onclick="selectBatch('${b.id}')">
+      <div>
+        <div class="batch-id"><span class="id">${b.id}</span></div>
+        <div class="batch-meta">${b.count} prompts &middot; ${new Date(b.submittedAt).toLocaleTimeString()}${metaExtra}</div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill ${b.status}" style="width:${pct}%"></div>
+        </div>
+        <div class="progress-text">${b.completed} / ${b.total}</div>
+      </div>
+      <div>
+        <span class="badge ${b.status}">${b.status.replace('_',' ')}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateStats(batches) {
+  const total = batches.length;
+  const active = batches.filter(b => b.status === 'in_progress').length;
+  const completed = batches.filter(b => b.status === 'completed').length;
+  const retrying = batches.filter(b => b.status === 'in_progress' && (stallCount[b.id] || 0) >= STALL_THRESHOLD).length;
+
+  let failedItems = 0;
+  Object.values(batchResults).forEach(results => {
+    if (Array.isArray(results)) {
+      failedItems += results.filter(r => r.response && r.response.includes('FAILED')).length;
+    }
+  });
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statActive').textContent = active;
+  document.getElementById('statCompleted').textContent = completed;
+  document.getElementById('statRetrying').textContent = retrying;
+  document.getElementById('statFailed').textContent = failedItems;
+}
+
+function selectBatch(id) {
+  selectedBatch = id;
+  document.querySelectorAll('.batch-row').forEach(r => r.classList.remove('selected'));
+  const row = document.querySelector(`.batch-row .id`);
+  if (row) {
+    const match = [...document.querySelectorAll('.batch-row')].find(r => r.querySelector('.id').textContent === id);
+    if (match) match.classList.add('selected');
+  }
+  const batches = getStoredBatches();
+  const b = batches.find(x => x.id === id);
+  if (b) {
+    api(`/status/${id}`).then(s => {
+      if (!s.error) {
+        const merged = {...b, ...s};
+        showBatchDetail(merged);
+      }
+    });
+  }
+}
+
+async function showBatchDetail(batch) {
+  let results = batchResults[batch.id];
+  if (!results && batch.status === 'completed') {
+    try {
+      results = await api(`/results/${batch.id}`);
+      if (!results.error) batchResults[batch.id] = results;
+    } catch {}
+  }
+
+  const pct = batch.total > 0 ? Math.round((batch.completed / batch.total) * 100) : 0;
+  const failedCount = results && Array.isArray(results)
+    ? results.filter(r => r.response && r.response.includes('FAILED')).length
+    : 0;
+  const succeededCount = results && Array.isArray(results)
+    ? results.filter(r => !(r.response && r.response.includes('FAILED'))).length
+    : 0;
+
+  let html = `<h2>Batch <span style="color:var(--accent)">${batch.id}</span>
+    <span class="badge ${batch.status}">${batch.status.replace('_',' ')}</span>
+    <button class="modal-close" onclick="closeModal()">&times;</button></h2>`;
+
+  html += `<div class="detail-stats">
+    <div class="detail-stat"><div class="val">${batch.completed} / ${batch.total}</div><div class="lbl">Progress</div></div>
+    <div class="detail-stat"><div class="val" style="color:var(--green)">${succeededCount}</div><div class="lbl">Succeeded</div></div>
+    <div class="detail-stat"><div class="val" style="color:var(--red)">${failedCount}</div><div class="lbl">Failed</div></div>
+  </div>`;
+
+  html += `<div class="progress-wrap" style="width:100%;margin-bottom:20px">
+    <div class="progress-bar-bg"><div class="progress-bar-fill ${batch.status}" style="width:${pct}%"></div></div>
+  </div>`;
+
+  if (batch.status === 'in_progress') {
+    const stalledPolls = stallCount[batch.id] || 0;
+    if (stalledPolls >= STALL_THRESHOLD) {
+      html += `<p style="color:var(--amber);font-size:0.85rem;margin-top:12px">&#9888; <strong>Workers retrying:</strong> Progress has stalled for ${stalledPolls} poll cycles (${stalledPolls * 2}s). Workers are likely retrying prompts that received HTTP 429 (Too Many Requests) with exponential backoff. The mock inference API has a 30% rate-limit failure rate, so retries are expected.</p>`;
+    } else if (stalledPolls > 0) {
+      html += `<p style="color:var(--text2);font-size:0.85rem"><span class="spinner"></span> Processing... ${batch.completed} of ${batch.total} prompts complete.</p>`;
+    } else {
+      html += `<p style="color:var(--text2);font-size:0.85rem"><span class="spinner"></span> Processing... ${batch.completed} of ${batch.total} prompts complete. Workers are actively making progress.</p>`;
+    }
+  }
+
+  if (results && Array.isArray(results)) {
+    html += `<h3 style="font-size:0.9rem;margin-top:20px;margin-bottom:12px">Results</h3>`;
+    html += `<table class="result-table"><thead><tr><th>#</th><th>Prompt</th><th>Response</th></tr></thead><tbody>`;
+    results.forEach((r, i) => {
+      const isFailed = r.response && r.response.includes('FAILED');
+      html += `<tr class="result-row ${isFailed ? 'failed' : ''}">
+        <td>${i + 1}</td>
+        <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.prompt)}">${esc(r.prompt)}</td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.response || '')}">${esc(r.response || '—')}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+
+    if (failedCount > 0) {
+      html += `<div class="failed-section">
+        <h3>&#9888; Failed Prompts (${failedCount})</h3>
+        <p style="font-size:0.8rem;color:var(--text2)">These prompts exhausted all ${failedCount > 0 ? 'retry attempts' : ''} and were marked as failed. The workers retried with exponential backoff but could not get a successful response.</p>
+        <table class="result-table" style="margin-top:8px"><thead><tr><th>#</th><th>Prompt</th><th>Status</th></tr></thead><tbody>`;
+      results.forEach((r, i) => {
+        if (r.response && r.response.includes('FAILED')) {
+          html += `<tr class="result-row failed">
+            <td>${i + 1}</td>
+            <td>${esc(r.prompt)}</td>
+            <td style="color:var(--red)">FAILED after max retries</td>
+          </tr>`;
+        }
+      });
+      html += `</tbody></table></div>`;
+    }
+  }
+
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updatePromptCount() {
+  const text = document.getElementById('promptInput').value.trim();
+  if (!text) { document.getElementById('promptCount').textContent = '0 prompts entered'; return; }
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      document.getElementById('promptCount').textContent = `${parsed.length} prompts (parsed from JSON)`;
+      return;
+    }
+  } catch {}
+
+  const lines = text.split('\n').filter(l => l.trim());
+  document.getElementById('promptCount').textContent = `${lines.length} prompts (one per line)`;
+}
+
+function parsePrompts() {
+  const text = document.getElementById('promptInput').value.trim();
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed) && parsed.every(p => typeof p === 'string')) return parsed;
+  } catch {}
+
+  return text.split('\n').map(l => l.trim()).filter(l => l);
+}
+
+async function submitBatch(el) {
+  const prompts = parsePrompts();
+  if (!prompts.length) {
+    showResponse('Please enter at least one prompt.', 'error');
+    return;
+  }
+
+  const btn = el || document.querySelector('#tab-submit .btn.primary');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  try {
+    const data = await api('/', { method: 'POST', body: JSON.stringify({ prompts }) });
+    if (data.batch_id) {
+      const batches = getStoredBatches();
+      batches.push({ id: data.batch_id, count: data.count, submittedAt: Date.now() });
+      storeBatches(batches);
+      showResponse(`Batch <strong>${data.batch_id}</strong> submitted with ${data.count} prompts. <a href="#" onclick="switchTab('dashboard');selectBatch('${data.batch_id}');return false" style="color:#60a5fa">View on Dashboard</a>`, 'success');
+      document.getElementById('promptInput').value = '';
+      updatePromptCount();
+    } else {
+      showResponse('Unexpected response: ' + JSON.stringify(data), 'error');
+    }
+  } catch (e) {
+    showResponse('Failed to submit: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '\u25b6 Submit Batch';
+  }
+}
+
+async function submitFromFile() {
+  const path = document.getElementById('filePath').value.trim();
+  if (!path) {
+    showResponse('Please enter a file path.', 'error');
+    return;
+  }
+
+  try {
+    const data = await api('/from-file', { method: 'POST', body: JSON.stringify({ path }) });
+    if (data.batch_id) {
+      const batches = getStoredBatches();
+      batches.push({ id: data.batch_id, count: data.count, submittedAt: Date.now() });
+      storeBatches(batches);
+      showResponse(`Batch <strong>${data.batch_id}</strong> loaded from file with ${data.count} prompts.`, 'success');
+      switchTab('dashboard');
+      selectBatch(data.batch_id);
+    } else if (data.detail) {
+      showResponse(data.detail, 'error');
+    } else {
+      showResponse('Error: ' + JSON.stringify(data), 'error');
+    }
+  } catch (e) {
+    showResponse('Failed: ' + e.message, 'error');
+  }
+}
+
+function generateSamples(n = 50) {
+  const prompts = [];
+  for (let i = 0; i < n; i++) {
+    prompts.push(SAMPLE_POOL[Math.floor(Math.random() * SAMPLE_POOL.length)]);
+  }
+  document.getElementById('promptInput').value = prompts.join('\n');
+  updatePromptCount();
+}
+
+function showResponse(msg, type) {
+  const el = document.getElementById('submitResponse');
+  el.className = 'response-banner ' + type;
+  el.innerHTML = msg;
+  setTimeout(() => { el.className = 'response-banner'; el.innerHTML = ''; }, 8000);
+}
+
+function clearBatches() {
+  if (confirm('Remove all batches from the dashboard? (This only clears local tracking, not server data.)')) {
+    localStorage.removeItem('batches');
+    selectedBatch = null;
+    batchResults = {};
+    renderBatchList([]);
+    updateStats([]);
+  }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+  if (name === 'dashboard') refreshAll();
+}
+
+// Init
+document.getElementById('promptInput').addEventListener('input', updatePromptCount);
+
+document.querySelectorAll('nav.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+document.getElementById('autoRefresh').addEventListener('change', function() {
+  if (this.checked) startPolling(); else stopPolling();
+});
+
+function startPolling() {
+  stopPolling();
+  document.getElementById('pollIndicator').style.display = 'inline';
+  pollTimer = setInterval(refreshAll, 2000);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  document.getElementById('pollIndicator').style.display = 'none';
+}
+
+checkConnection();
+refreshAll();
+startPolling();
+setInterval(checkConnection, 15000);
+</script>
+
+</body>
+</html>
