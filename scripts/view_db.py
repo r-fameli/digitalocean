@@ -30,6 +30,9 @@ if row[3]:
 print(f"Events: {conn.execute('SELECT COUNT(*) FROM orchestration_events WHERE orchestration_id=?', (oid,)).fetchone()[0]}")
 print()
 
-for ev in conn.execute("SELECT sequence, activity_input, activity_output FROM orchestration_events WHERE orchestration_id=? ORDER BY sequence", (oid,)):
+for ev in conn.execute(
+    "SELECT prompt_index, activity_input, activity_output FROM orchestration_events WHERE orchestration_id=? ORDER BY prompt_index",
+    (oid,),
+):
     out = json.loads(ev[2])
     print(f"  [{ev[0]}] {ev[1]} -> {out.get('response', str(out)[:40])}")

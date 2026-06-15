@@ -2,7 +2,7 @@
 
 Backend service that ingests batches of AI prompts, processes them in parallel against a mock inference endpoint with retry logic, and aggregates results. Uses an event-sourced durable orchestrator backed by SQLite.
 
-See [architecture.md](architecture.md) for the full design, system diagram, and data flow.
+See [architecture/architecture.md](architecture/architecture.md) for the full design, system diagram, and data flow.
 
 ## Setup
 
