@@ -37,13 +37,13 @@ def run_test(name, fn):
         return False
 
 
-def test_health():
+def check_health():
     resp = requests.get(f"{BASE}/", timeout=10)
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
 
 
-def test_single_prompt():
+def check_single_prompt():
     resp = requests.post(f"{BASE}/", json={"prompts": ["What is 2+2?"]}, timeout=10)
     assert resp.status_code == 200
     data = resp.json()
@@ -58,7 +58,7 @@ def test_single_prompt():
     assert results[0]["prompt"] == "What is 2+2?"
 
 
-def test_multiple_prompts():
+def check_multiple_prompts():
     prompts = [f"Prompt {i}" for i in range(5)]
     resp = requests.post(f"{BASE}/", json={"prompts": prompts}, timeout=10)
     data = resp.json()
@@ -71,7 +71,7 @@ def test_multiple_prompts():
     assert results[4]["prompt"] == "Prompt 4"
 
 
-def test_parallel_execution():
+def check_parallel_execution():
     prompts = [f"P{i}" for i in range(10)]
     t0 = time.time()
     resp = requests.post(f"{BASE}/", json={"prompts": prompts}, timeout=10)
@@ -87,26 +87,26 @@ def test_parallel_execution():
     print(f"          (10 prompts in {elapsed:.1f}s)")
 
 
-def test_status_404():
+def check_status_404():
     resp = requests.get(f"{BASE}/status/nonexistent", timeout=10)
     assert resp.status_code == 200
     assert "error" in resp.json()
 
 
-def test_results_404():
+def check_results_404():
     resp = requests.get(f"{BASE}/results/nonexistent", timeout=10)
     assert resp.status_code == 200
     assert "error" in resp.json()
 
 
-def test_results_while_processing():
+def check_results_while_processing():
     resp = requests.post(f"{BASE}/", json={"prompts": ["slow"]}, timeout=10)
     batch_id = resp.json()["batch_id"]
     resp2 = requests.get(f"{BASE}/results/{batch_id}", timeout=10)
     assert "error" in resp2.json()
 
 
-def test_empty_batch():
+def check_empty_batch():
     resp = requests.post(f"{BASE}/", json={"prompts": []}, timeout=10)
     assert resp.status_code == 200
     data = resp.json()
@@ -117,7 +117,7 @@ def test_empty_batch():
     assert results == []
 
 
-def test_concurrent_batches():
+def check_concurrent_batches():
     batch_ids = []
     for i in range(3):
         resp = requests.post(f"{BASE}/", json={"prompts": [f"b{i}-p{j}" for j in range(3)]}, timeout=10)
@@ -129,7 +129,7 @@ def test_concurrent_batches():
         assert len(results) == 3
 
 
-def test_429_retry():
+def check_429_retry():
     """Submit 30 prompts — some will hit 429s but all should complete."""
     prompts = [f"retry-{i}" for i in range(30)]
     resp = requests.post(f"{BASE}/", json={"prompts": prompts}, timeout=10)
@@ -147,7 +147,7 @@ def test_429_retry():
     print(f"          ({succeeded} succeeded, {len(failed)} failed after max retries)")
 
 
-def test_status_shows_progress():
+def check_status_shows_progress():
     prompts = [f"prog-{i}" for i in range(10)]
     resp = requests.post(f"{BASE}/", json={"prompts": prompts}, timeout=10)
     batch_id = resp.json()["batch_id"]
@@ -162,17 +162,17 @@ def test_status_shows_progress():
 
 if __name__ == "__main__":
     tests = [
-        ("health", test_health),
-        ("single prompt", test_single_prompt),
-        ("multiple prompts", test_multiple_prompts),
-        ("parallel execution", test_parallel_execution),
-        ("status 404", test_status_404),
-        ("results 404", test_results_404),
-        ("results while processing", test_results_while_processing),
-        ("empty batch", test_empty_batch),
-        ("concurrent batches", test_concurrent_batches),
-        ("429 retry (30 prompts)", test_429_retry),
-        ("status progress", test_status_shows_progress),
+        ("health", check_health),
+        ("single prompt", check_single_prompt),
+        ("multiple prompts", check_multiple_prompts),
+        ("parallel execution", check_parallel_execution),
+        ("status 404", check_status_404),
+        ("results 404", check_results_404),
+        ("results while processing", check_results_while_processing),
+        ("empty batch", check_empty_batch),
+        ("concurrent batches", check_concurrent_batches),
+        ("429 retry (30 prompts)", check_429_retry),
+        ("status progress", check_status_shows_progress),
     ]
 
     passed = 0
