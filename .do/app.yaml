@@ -20,10 +20,6 @@ services:
         scope: RUN_TIME
         type: GENERAL
       - key: DURABLE_DB_PATH
-        value: /workspaces/orchestrator.db
-        scope: RUN_TIME
-        type: GENERAL
-      - key: DURABLE_DB_PATH
         value: /workspace/orchestrator.db
         scope: RUN_TIME
         type: GENERAL

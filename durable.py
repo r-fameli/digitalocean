@@ -4,9 +4,11 @@ import sqlite3
 import threading
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 DB_PATH = os.environ.get("DURABLE_DB_PATH", "orchestrator.db")
+POOL_SIZE = int(os.environ.get("POOL_SIZE", "5"))
 
 
 def _now():
@@ -17,17 +19,36 @@ class DurableStore:
     def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         self._local = threading.local()
-        self._init_db()
+        self._shared_conn = None
+        self._ready = False
+        try:
+            self._init_db()
+            self._ready = True
+        except Exception as e:
+            print(f"[DurableStore] WARNING: DB init failed ({e}), using in-memory fallback")
+            self.db_path = ":memory:"
+            self._shared_conn = None
+            self._init_db()
+            self._ready = True
 
     @property
     def _conn(self):
         if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = sqlite3.connect(self.db_path)
-            self._local.conn.row_factory = sqlite3.Row
+            if self._shared_conn is not None:
+                self._local.conn = self._shared_conn
+            else:
+                self._local.conn = sqlite3.connect(self.db_path)
+                self._local.conn.row_factory = sqlite3.Row
         return self._local.conn
 
     def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
+        if self.db_path == ":memory:":
+            self._shared_conn = sqlite3.connect(":memory:")
+            self._shared_conn.row_factory = sqlite3.Row
+            conn = self._shared_conn
+        else:
+            self._shared_conn = None
+            conn = sqlite3.connect(self.db_path)
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS orchestrations (
                 id TEXT PRIMARY KEY,
@@ -49,7 +70,8 @@ class DurableStore:
             );
         """)
         conn.commit()
-        conn.close()
+        if self.db_path != ":memory:":
+            conn.close()
 
     def create_orchestration(self, orchestration_id, prompts):
         self._conn.execute(
@@ -127,63 +149,44 @@ class RetryPolicy:
         self.backoff_multiplier = backoff_multiplier
 
 
-class OrchestrationContext:
-    def __init__(self, orchestration_id, store, inference_url):
-        self.orchestration_id = orchestration_id
-        self.store = store
-        self.inference_url = inference_url
-        self._events = store.get_events(orchestration_id)
-        self._event_index = 0
-        self._new_events = False
+def _infer_with_retry(inference_url, prompt, retry_policy=None):
+    if retry_policy is None:
+        retry_policy = RetryPolicy()
 
-    def call_activity(self, prompt, retry_policy=None):
-        if retry_policy is None:
-            retry_policy = RetryPolicy()
-
-        if self._event_index < len(self._events):
-            event = self._events[self._event_index]
-            if event["activity_input"] == prompt:
-                self._event_index += 1
-                return json.loads(event["activity_output"])
-
-        result = self._run_activity(prompt, retry_policy)
-
-        self.store.save_event(self.orchestration_id, self._event_index, "infer", prompt, result)
-        self._event_index += 1
-        self._new_events = True
-        return result
-
-    def _run_activity(self, prompt, retry_policy):
-        for attempt in range(retry_policy.max_retries):
-            try:
-                resp = requests.post(self.inference_url, json={"prompt": prompt}, timeout=5)
-                if resp.status_code == 429:
-                    wait = retry_policy.initial_delay * (retry_policy.backoff_multiplier ** attempt)
-                    print(f"      429 on '{prompt[:30]}...' - retry in {wait}s (attempt {attempt+1}/{retry_policy.max_retries})")
-                    time.sleep(wait)
-                    continue
-                return resp.json()
-            except requests.RequestException as e:
+    for attempt in range(retry_policy.max_retries):
+        try:
+            resp = requests.post(inference_url, json={"prompt": prompt}, timeout=5)
+            if resp.status_code == 429:
                 wait = retry_policy.initial_delay * (retry_policy.backoff_multiplier ** attempt)
-                print(f"      Error on '{prompt[:30]}...' - {e}, retry in {wait}s")
+                print(f"      429 on '{prompt[:30]}...' - retry in {wait}s (attempt {attempt+1}/{retry_policy.max_retries})")
                 time.sleep(wait)
-        return {"prompt": prompt, "response": "FAILED after max retries"}
-
-    def has_new_events(self):
-        return self._new_events
+                continue
+            return resp.json()
+        except requests.RequestException as e:
+            wait = retry_policy.initial_delay * (retry_policy.backoff_multiplier ** attempt)
+            print(f"      Error on '{prompt[:30]}...' - {e}, retry in {wait}s")
+            time.sleep(wait)
+    return {"prompt": prompt, "response": "FAILED after max retries"}
 
 
 def run_orchestrator(orchestration_id, prompts, inference_url):
     store = DurableStore()
-    ctx = OrchestrationContext(orchestration_id, store, inference_url)
     total = len(prompts)
-    print(f"[{orchestration_id}] Orchestrator started: {total} prompts")
+    pool_size = min(POOL_SIZE, total) if total > 0 else 1
+    print(f"[{orchestration_id}] Orchestrator started: {total} prompts, pool size {pool_size}")
 
     try:
-        output = []
-        for i, prompt in enumerate(prompts):
-            result = ctx.call_activity(prompt)
-            output.append(result)
+        def worker(idx, prompt):
+            result = _infer_with_retry(inference_url, prompt)
+            store.save_event(orchestration_id, idx, "infer", prompt, result)
+            return idx, result
+
+        output = [None] * total
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            futures = {executor.submit(worker, i, p): i for i, p in enumerate(prompts)}
+            for future in futures:
+                idx, result = future.result()
+                output[idx] = result
 
         store.complete_orchestration(orchestration_id, output)
         print(f"[{orchestration_id}] Orchestrator completed")
