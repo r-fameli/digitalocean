@@ -4,7 +4,7 @@ services:
   - name: api
     environment_slug: python
     git:
-      branch: master
+      branch: main
       repo_clone_url: https://github.com/r-fameli/digitalocean.git
     http_port: 8080
     instance_count: 1
