@@ -6,7 +6,7 @@ A FastAPI backend that ingests batches of AI prompts, processes them in parallel
 
 ## System Diagram
 
-```
+``` 
                                      ┌────────────────────────┐
   Client                             │     server.py :8080    │
   ──────                             │                        │
