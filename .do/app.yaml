@@ -29,9 +29,16 @@ services:
     git:
       branch: main
       repo_clone_url: https://github.com/r-fameli/digitalocean.git
-    internal_ports:
-      - 8081
+    http_port: 8081
     instance_count: 1
     instance_size_slug: basic-xxs
-    run_command: uvicorn mock_inference:app --host 0.0.0.0 --port 8081
+    run_command: uvicorn mock_inference:app --host 0.0.0.0 --port $PORT
     source_dir: /
+
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /
