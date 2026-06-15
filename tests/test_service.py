@@ -14,7 +14,7 @@ def wait_for_completion(batch_id, timeout=15):
     raise TimeoutError(f"Batch {batch_id} did not complete within {timeout}s")
 
 
-def test_parallel_execution():
+def integration_parallel_execution():
     """Verify multiple prompts process concurrently (not one-at-a-time)."""
     prompts = [f"Prompt {i}" for i in range(10)]
     t0 = time.time()
@@ -34,7 +34,7 @@ def test_parallel_execution():
     print(f"  Last:  {results[9]}")
 
 
-def test_replay():
+def integration_replay():
     """Verify that saved events skip re-processing."""
     prompts = [f"Replay prompt {i}" for i in range(5)]
     resp = requests.post(BASE, json={"prompts": prompts})
@@ -59,7 +59,7 @@ def test_replay():
     print("[replay] PASS: both batches completed")
 
 
-def test_ttl_cleanup():
+def integration_ttl_cleanup():
     """Verify old orchestrations get cleaned up."""
     resp = requests.post(BASE, json={"prompts": ["TTL test"]})
     batch_id = resp.json()["batch_id"]
@@ -70,6 +70,6 @@ def test_ttl_cleanup():
 
 
 if __name__ == "__main__":
-    test_parallel_execution()
-    test_replay()
-    test_ttl_cleanup()
+    integration_parallel_execution()
+    integration_replay()
+    integration_ttl_cleanup()

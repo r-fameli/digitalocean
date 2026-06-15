@@ -111,13 +111,19 @@ Set `TTL_DAYS` to a positive number (e.g. `7`) to automatically delete orchestra
 
 ## Running Tests
 
-With the server and mock inference running:
+### Unit tests (no servers needed)
 
 ```bash
-python test_service.py
+python -m pytest tests/
 ```
 
-Tests verify: batch acceptance, result retrieval, checkpoint persistence, and crash-recovery readiness.
+### Integration tests (with server and mock inference running)
+
+```bash
+python tests/test_service.py
+```
+
+Tests verify: batch acceptance, result retrieval, parallel execution, checkpoint persistence, and TTL cleanup.
 
 ## CI/CD
 
