@@ -9,36 +9,17 @@ services:
     http_port: 8080
     instance_count: 1
     instance_size_slug: basic-xxs
-    run_command: uvicorn server:app --host 0.0.0.0 --port $PORT
+    run_command: bash start.sh
     source_dir: /
     health_check:
       http_path: /
-      initial_delay_seconds: 5
+      initial_delay_seconds: 10
     envs:
       - key: INFERENCE_URL
-        value: http://mock-inference:8081/infer
+        value: http://localhost:8081/infer
         scope: RUN_TIME
         type: GENERAL
       - key: DURABLE_DB_PATH
         value: /workspace/orchestrator.db
         scope: RUN_TIME
         type: GENERAL
-
-  - name: mock-inference
-    environment_slug: python
-    git:
-      branch: main
-      repo_clone_url: https://github.com/r-fameli/digitalocean.git
-    http_port: 8081
-    instance_count: 1
-    instance_size_slug: basic-xxs
-    run_command: uvicorn mock_inference:app --host 0.0.0.0 --port $PORT
-    source_dir: /
-
-ingress:
-  rules:
-    - component:
-        name: api
-      match:
-        path:
-          prefix: /
