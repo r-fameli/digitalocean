@@ -2,6 +2,7 @@ import os
 import time
 import random
 from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -28,7 +29,7 @@ def infer(req: InferenceRequest, fail_rate: float = Query(default=None, ge=0, le
     if config["latency_ms"]:
         time.sleep(config["latency_ms"] / 1000)
     if random.random() < rate:
-        return {"error": "Too Many Requests"}, 429
+        return JSONResponse(status_code=429, content={"error": "Too Many Requests"})
     return {
         "prompt": req.prompt,
         "response": config["response_template"].format(prompt=req.prompt, reversed=req.prompt[::-1]),
