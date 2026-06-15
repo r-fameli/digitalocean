@@ -20,6 +20,14 @@ services:
         scope: RUN_TIME
         type: GENERAL
       - key: DURABLE_DB_PATH
-        value: /workspace/orchestrator.db
+        value: /workspaces/orchestrator.db
+        scope: RUN_TIME
+        type: GENERAL
+      - key: POOL_SIZE
+        value: "5"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: TTL_DAYS
+        value: "7"
         scope: RUN_TIME
         type: GENERAL
