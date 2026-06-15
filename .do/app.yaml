@@ -1,0 +1,21 @@
+name: batch-inference-engine
+region: nyc
+services:
+  - name: api
+    environment_slug: python
+    git:
+      branch: master
+      repo_clone_url: https://github.com/r-fameli/digitalocean.git
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    run_command: uvicorn server:app --host 0.0.0.0 --port $PORT
+    source_dir: /
+    health_check:
+      http_path: /
+      initial_delay_seconds: 5
+    envs:
+      - key: INFERENCE_URL
+        value: http://mock-inference:8081/infer
+        scope: RUN_TIME
+        type: GENERAL
