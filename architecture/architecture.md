@@ -67,7 +67,7 @@ backend/
   server.py              # FastAPI server — ingestion, kicks off orchestrator
   durable.py             # Durable orchestrator framework — event sourcing, ThreadPoolExecutor, SQLite store
   mock_inference.py      # Mock AI inference API (configurable fail rate, latency)
-  requirements.txt       # fastapi, uvicorn, requests, pytest
+
   scripts/
     start.sh             # App Platform entrypoint: starts mock + server
   tests/
@@ -263,4 +263,4 @@ python tests/test_service.py
 doctl apps create --spec .do/app.yaml
 ```
 
-Or connect the GitHub repo in the [App Platform dashboard](https://cloud.digitalocean.com/apps). App Platform auto-detects Python, installs from `requirements.txt`, and runs `bash scripts/start.sh`.
+Or connect the GitHub repo in the [App Platform dashboard](https://cloud.digitalocean.com/apps). App Platform auto-detects Python, installs dependencies, and runs `bash scripts/start.sh`.
