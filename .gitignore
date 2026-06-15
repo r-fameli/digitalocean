@@ -5,3 +5,4 @@ output/
 orchestrator.db
 *.md
 !README.md
+!architecture/*.md
