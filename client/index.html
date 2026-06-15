@@ -140,7 +140,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px; }
 .progress-wrap { width: 200px; }
 .progress-bar-bg { background: var(--surface2); border-radius: 4px; height: 8px; overflow: hidden; }
 .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
-.progress-bar-fill.in_progress { background: var(--accent); }
+.progress-bar-fill.running { background: var(--accent); }
 .progress-bar-fill.completed { background: var(--green); }
 .progress-text { font-size: 0.75rem; color: var(--text2); margin-top: 4px; text-align: right; }
 
@@ -153,7 +153,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.badge.in_progress { background: #1e3a5f; color: #60a5fa; }
+.badge.running { background: #1e3a5f; color: #60a5fa; }
 .badge.completed { background: #14532d; color: #4ade80; }
 .badge.failed { background: #7f1d1d; color: #fca5a5; }
 .badge.queued { background: #713f12; color: #fcd34d; }
@@ -474,7 +474,7 @@ async function refreshAll() {
   });
 
   merged.forEach(b => {
-    if (b.status === 'in_progress') {
+    if (b.status === 'running') {
       const prev = prevProgress[b.id];
       if (prev !== undefined && b.completed === prev) {
         stallCount[b.id] = (stallCount[b.id] || 0) + 1;
@@ -511,7 +511,7 @@ function renderBatchList(batches) {
   container.innerHTML = batches.map(b => {
     const pct = b.total > 0 ? Math.round((b.completed / b.total) * 100) : 0;
     const cls = b.id === selectedBatch ? 'selected' : '';
-    const isStalled = b.status === 'in_progress' && (stallCount[b.id] || 0) >= STALL_THRESHOLD;
+    const isStalled = b.status === 'running' && (stallCount[b.id] || 0) >= STALL_THRESHOLD;
     const metaExtra = isStalled
       ? ' <span style="color:var(--amber);font-size:0.75rem" title="Progress stalled — workers may be retrying after 429 errors">&#9888; retrying</span>'
       : '';
@@ -535,9 +535,9 @@ function renderBatchList(batches) {
 
 function updateStats(batches) {
   const total = batches.length;
-  const active = batches.filter(b => b.status === 'in_progress').length;
+  const active = batches.filter(b => b.status === 'running').length;
   const completed = batches.filter(b => b.status === 'completed').length;
-  const retrying = batches.filter(b => b.status === 'in_progress' && (stallCount[b.id] || 0) >= STALL_THRESHOLD).length;
+  const retrying = batches.filter(b => b.status === 'running' && (stallCount[b.id] || 0) >= STALL_THRESHOLD).length;
 
   let failedItems = 0;
   Object.values(batchResults).forEach(results => {
@@ -604,7 +604,7 @@ async function showBatchDetail(batch) {
     <div class="progress-bar-bg"><div class="progress-bar-fill ${batch.status}" style="width:${pct}%"></div></div>
   </div>`;
 
-  if (batch.status === 'in_progress') {
+  if (batch.status === 'running') {
     const stalledPolls = stallCount[batch.id] || 0;
     if (stalledPolls >= STALL_THRESHOLD) {
       html += `<p style="color:var(--amber);font-size:0.85rem;margin-top:12px">&#9888; <strong>Workers retrying:</strong> Progress has stalled for ${stalledPolls} poll cycles (${stalledPolls * 2}s). Workers are likely retrying prompts that received HTTP 429 (Too Many Requests) with exponential backoff. The mock inference API has a 30% rate-limit failure rate, so retries are expected.</p>`;

@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
 output/
+orchestrator.db
 *.md
 !README.md
