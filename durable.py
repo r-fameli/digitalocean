@@ -41,7 +41,8 @@ class DurableStore:
                 updated_at TEXT
             );
         """)
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(orchestration_events)").fetchall()] if list(conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_events'")) else []
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(orchestration_events)").fetchall()] if list(
+            conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_events'")) else []
         if "sequence" in cols:
             conn.execute("DROP TABLE orchestration_events")
             cols = []
@@ -61,11 +62,14 @@ class DurableStore:
         conn.close()
 
     def cleanup_old(self, ttl_days):
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=ttl_days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) -
+                  timedelta(days=ttl_days)).isoformat()
         conn = sqlite3.connect(self.db_path)
-        old = conn.execute("SELECT id FROM orchestrations WHERE updated_at < ?", (cutoff,)).fetchall()
+        old = conn.execute(
+            "SELECT id FROM orchestrations WHERE updated_at < ?", (cutoff,)).fetchall()
         for row in old:
-            conn.execute("DELETE FROM orchestration_events WHERE orchestration_id=?", (row[0],))
+            conn.execute(
+                "DELETE FROM orchestration_events WHERE orchestration_id=?", (row[0],))
             conn.execute("DELETE FROM orchestrations WHERE id=?", (row[0],))
         conn.commit()
         conn.close()
@@ -103,11 +107,13 @@ class DurableStore:
     def save_event(self, orchestration_id, prompt_index, activity_input, activity_output):
         self._conn.execute(
             "INSERT OR IGNORE INTO orchestration_events (orchestration_id, prompt_index, activity_input, activity_output, created_at) VALUES (?, ?, ?, ?, ?)",
-            (orchestration_id, prompt_index, activity_input, json.dumps(activity_output), _now()),
+            (orchestration_id, prompt_index, activity_input,
+             json.dumps(activity_output), _now()),
         )
         self._conn.commit()
         self._conn.execute(
-            "UPDATE orchestrations SET updated_at=? WHERE id=?", (_now(), orchestration_id)
+            "UPDATE orchestrations SET updated_at=? WHERE id=?", (_now(
+            ), orchestration_id)
         )
         self._conn.commit()
 
@@ -135,7 +141,8 @@ class DurableStore:
 
     def get_result(self, orchestration_id):
         row = self._conn.execute(
-            "SELECT status, output FROM orchestrations WHERE id=?", (orchestration_id,)
+            "SELECT status, output FROM orchestrations WHERE id=?", (
+                orchestration_id,)
         ).fetchone()
         if row is None:
             return None
@@ -147,7 +154,8 @@ class DurableStore:
 def _execute_activity(prompt, inference_url, max_retries=5):
     for attempt in range(max_retries):
         try:
-            resp = requests.post(inference_url, json={"prompt": prompt}, timeout=5)
+            resp = requests.post(inference_url, json={
+                                 "prompt": prompt}, timeout=5)
             if resp.status_code == 429:
                 wait = 2 ** attempt
                 time.sleep(wait)
@@ -181,7 +189,7 @@ def run_orchestrator(orchestration_id, prompts, inference_url):
         return (prompt_index, result)
 
     with ThreadPoolExecutor(max_workers=pool_size) as executor:
-        futures = {executor.submit(worker, i, p): i for i, p in enumerate(prompts)}
+        futures = {executor.submit(worker, i, p)                   : i for i, p in enumerate(prompts)}
         for future in as_completed(futures):
             idx, result = future.result()
             activity_results[idx] = result

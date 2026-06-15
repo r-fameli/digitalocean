@@ -74,7 +74,8 @@ backend/
     test_unit.py         # Unit tests: DurableStore CRUD, replay, TTL, failures
     test_service.py      # Integration tests: full POST/GET flow against live servers
   view_db.py             # Interactive SQLite database browser
-  sample_prompts.json    # Sample prompts for /from-file testing
+  samples/
+    sample_prompts.json    # Sample prompts for /from-file testing
   .github/workflows/
     test.yml             # CI: install deps + run pytest on push
     deploy.yml           # CD: deploy to DO App Platform on push

@@ -40,7 +40,7 @@ curl -X POST http://localhost:8080/ \
 ```bash
 curl -X POST http://localhost:8080/from-file \
   -H "Content-Type: application/json" \
-  -d '{"path": "/workspaces/backend/sample_prompts.json"}'
+  -d '{"path": "/workspaces/backend/samples/sample_prompts.json"}'
 ```
 
 ### Check batch progress
